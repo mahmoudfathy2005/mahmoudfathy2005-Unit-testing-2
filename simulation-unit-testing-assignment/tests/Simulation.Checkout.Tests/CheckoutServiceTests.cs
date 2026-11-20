@@ -100,8 +100,10 @@ public async Task CheckoutAsync_InvalidQuantity_ShouldThrowInvalidQuantityExcept
 
 
 [Theory]
-[InlineData(-1.00)]
-[InlineData(-100.00)]
+ [InlineData(-1.00)]
+ [InlineData(-100.00)]
+ [InlineData(-0.01)]
+
 public async Task CheckoutAsync_InvalidPrice_ShouldThrowException_ShouldThrowInvalidPriceException(decimal invalidPrice)
 {
     //Arrange 
@@ -168,6 +170,60 @@ public async Task CheckoutAsync_InsufficientInventory_ShouldThrowException()
 
  }
 
+// Examble A AND C
+
+[Theory]
+[InlineData(150, 2, 400, 1, 700, 0, 700)]
+[InlineData(500, 3, 0, 0, 1500, 100, 1400)]
+public async Task CheckoutAsync_WhenExampleOrderIsProcessed_ShouldCalculateCorrectAmounts(
+    decimal firstPrice,
+    int firstQuantity,
+    decimal secondPrice,
+    int secondQuantity,
+    decimal expectedSubtotal,
+    decimal expectedDiscount,
+    decimal expectedTotal)
+{
+    // Arrange
+    var items = new List<OrderItem>
+    {
+        new OrderItem
+        {
+            ProductId = Guid.NewGuid(),
+            ProductName = "Product A",
+            UnitPrice = firstPrice,
+            Quantity = firstQuantity
+        }
+    };
+
+    if (secondQuantity > 0)
+    {
+        items.Add(new OrderItem
+        {
+            ProductId = Guid.NewGuid(),
+            ProductName = "Product B",
+            UnitPrice = secondPrice,
+            Quantity = secondQuantity
+        });
+    }
+
+    var order = new Order
+    {
+        CustomerName = "Ahmed",
+        CustomerEmail = "ahmed@test.com",
+        Items = items
+    };
+
+    // Act
+    var receipt = await _checkoutService.CheckoutAsync(order);
+
+    // Assert
+    receipt.Subtotal.Should().Be(expectedSubtotal);
+    receipt.Discount.Should().Be(expectedDiscount);
+    receipt.Total.Should().Be(expectedTotal);
+}
+
+
    [Fact]
    public async Task CheckoutAsync_WhenOrderHasMultipleItems_ShouldCalculateCorrectSubtotal()
     {
@@ -210,6 +266,35 @@ public async Task CheckoutAsync_InsufficientInventory_ShouldThrowException()
     recipt.Subtotal.Should().Be(1500m);
   
     }
+
+    [Fact]
+public async Task CheckoutAsync_WhenPriceIsZero_ShouldSucceed()
+{
+    // Arrange
+    var order = new Order
+    {
+        CustomerName = "Ahmed",
+        CustomerEmail = "ahmed@test.com",
+        Items = new[]
+        {
+            new OrderItem
+            {
+                ProductId = Guid.NewGuid(),
+                ProductName = "Laptop",
+                UnitPrice = 0m,
+                Quantity = 1
+            }
+        }
+    };
+
+    // Act
+    var receipt = await _checkoutService.CheckoutAsync(order);
+
+    // Assert
+    receipt.Subtotal.Should().Be(0m);
+    receipt.Discount.Should().Be(0m);
+    receipt.Total.Should().Be(0m);
+}
 
 
 [Theory]
@@ -399,6 +484,7 @@ public async Task CheckoutAsync_WhenCheckoutFaild_ShouldNotSaveAndNOtSendConfirm
        await act.Should().ThrowAsync<EmptyOrderException>()
             .WithMessage("An order must contain at least one item.");
 
+
       _orderRepositoryMock.Verify(x=>
          x.SaveAsync(
                       It.IsAny<Order>(),
@@ -414,6 +500,15 @@ public async Task CheckoutAsync_WhenCheckoutFaild_ShouldNotSaveAndNOtSendConfirm
             ),
             Times.Never
 
+        );
+
+        _inventoryServiceMock.Verify(x=>
+         x.IsAvailableAsync(
+            It.IsAny<Guid>(),
+            It.IsAny<int>(),
+            It.IsAny<CancellationToken>()
+         ),
+         Times.Never
         );
 
 
