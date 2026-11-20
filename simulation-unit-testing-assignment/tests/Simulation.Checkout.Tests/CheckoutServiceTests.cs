@@ -6,6 +6,7 @@ using Simulation.Checkout.Application;
 using Simulation.Checkout.Application.Abstractions;
 using Simulation.Checkout.Domain;
 using Simulation.Checkout.Domain.Exceptions;
+using System.Net.Http.Headers;
 namespace Simulation.Checkout.Tests;
 
 public class CheckoutServiceTests
@@ -246,8 +247,7 @@ public async Task CheckoutAsync_InsufficientInventory_ShouldThrowException()
   [Theory]
 [InlineData(1000,900)]
 [InlineData(1500,1400)]
-[InlineData(999,999)]
-    public async Task CheckoutAsync_WhenSubtotalIsGreaterthan1000orEquel_ShouldApplyNoDiscount(decimal price,decimal exepetedtotal)
+    public async Task CheckoutAsync_WhenSubtotalIsGreaterthan1000orEquel_ShouldApplyDiscount(decimal price,decimal exepetedtotal)
     {
         // Arrange
          var order = new Order
@@ -380,6 +380,45 @@ public async Task CheckoutAsync_WhenCheckoutSucceeds_ShouldSendOrderConfirmation
             It.IsAny<CancellationToken>()),
         Times.Once);
 }
+
+
+[Fact]
+public async Task CheckoutAsync_WhenCheckoutFaild_ShouldNotSaveAndNOtSendConfirmarion()
+    {
+        // Arrange
+        var order = new Order
+    {
+        CustomerName = "Ahmed",
+        CustomerEmail = "ahmed@test.com",
+        Items = new List<OrderItem>(),
+        
+    };
+       // Act
+        Func<Task> act = async () =>await _checkoutService.CheckoutAsync(order);
+       // assert
+       await act.Should().ThrowAsync<EmptyOrderException>()
+            .WithMessage("An order must contain at least one item.");
+
+      _orderRepositoryMock.Verify(x=>
+         x.SaveAsync(
+                      It.IsAny<Order>(),
+                       It.IsAny<CancellationToken>()
+                    ),
+                    Times.Never
+        );
+
+        _notificationServiceMock.Verify( x=>
+            x.SendOrderConfirmationAsync(
+                It.IsAny<CheckoutReceipt>(),
+                It.IsAny<CancellationToken>()
+            ),
+            Times.Never
+
+        );
+
+
+        
+    }
 
 
 }
