@@ -106,4 +106,8 @@ public sealed class CheckoutService
         var discount = decimal.Round(subtotal * DiscountRate, 2, MidpointRounding.AwayFromZero);
         return discount > MaxDiscount ? MaxDiscount : discount;
     }
+
+    
+    
+
 }
